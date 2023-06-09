@@ -13,8 +13,8 @@ class ImageApp:
     def __init__(self, root):
         self.root = root
         self.root.title("MedSAM App")
-        self.canvas_width = 256
-        self.canvas_height = 256
+        self.canvas_width = 720
+        self.canvas_height = 720
 
         # Create canvas
         self.canvas = tk.Canvas(
@@ -56,7 +56,7 @@ class ImageApp:
         # Open the image file
         image = Image.open(image_path)
 
-        image = image.resize((256, 256))
+        image = image.resize((720, 720))
 
         self.image = image
         # Resize the image to fit the canvas
@@ -132,7 +132,7 @@ class ImageApp:
             tensor_img.permute(1, 2, 0).cpu().numpy() * 255
         )  # np.array(self.image)
 
-        # color_mask = cv2.resize(color_mask, (self.image.width, self.image.height))
+        color_mask = cv2.resize(color_mask, (self.image.width, self.image.height))
 
         print(f"{color_mask.shape=}")
 

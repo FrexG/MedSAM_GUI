@@ -37,7 +37,7 @@ def infer(image: torch.Tensor, bbox: tuple):
     # trans_image = image.unsqueeze(0).to(device)
     trans_image = TF.resize(image, (1024, 1024))
 
-    box = sam_trans.apply_boxes(bbox, (256, 256))
+    box = sam_trans.apply_boxes(bbox, (H, W))
 
     box_tensor = torch.as_tensor(box, dtype=torch.float, device=config.device)
     # Get predictioin mask
