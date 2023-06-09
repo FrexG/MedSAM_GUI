@@ -27,6 +27,8 @@ python app.py
 ```
 ---
 # On progress ... 
+Feel free to contribute
 ## Todo List
 - [ ] Support dynamic image size
 - [ ] Support text prompting.
+- [ ] Modern GUI :)
