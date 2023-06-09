@@ -43,7 +43,7 @@ class ImageApp:
     def pick_image(self):
         # Open a file dialog to choose an image file
         file_path = filedialog.askopenfilename(
-            initialdir="/mnt/dysk_roboczy/fgela/Dataset_BUSI_with_GT",
+            initialdir="/",
             title="Select Image",
             filetypes=[("Image Files", "*.png *.jpg *.jpeg")],
         )
