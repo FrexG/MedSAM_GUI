@@ -9,13 +9,11 @@ from dataclasses import dataclass
 
 @dataclass()
 class Config:
-    sam_checkpoint_dir: str = (
-        "/mnt/dysk_roboczy/fgela/MedSAM_GUI/finetune_weights/sam_vit_b_01ec64.pth"
-    )
-    med_sam_checkpoint_dir: str = "/mnt/dysk_roboczy/fgela/MedSAM_GUI/finetune_weights/medsam_finetune_2023-05-16-09-55.pth"
+    sam_checkpoint_dir: str = "finetune_weights/sam_vit_b_01ec64.pth"
+    med_sam_checkpoint_dir: str = "finetune_weights/medsam_20230423_vit_b_0.0.1.pth"
 
     model_type: str = "vit_b"
-    device: str = "cuda:0"
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 @torch.inference_mode()
