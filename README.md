@@ -31,4 +31,4 @@ Feel free to contribute
 ## Todo List
 - [ ] Support dynamic image size
 - [ ] Support text prompting.
-- [ ] Modern GUI :)
+- [X] Modern GUI :)
