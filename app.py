@@ -2,6 +2,7 @@ import threading
 import cv2
 import numpy as np
 import tkinter as tk
+import customtkinter
 from tkinter import filedialog
 from PIL import Image, ImageTk
 import torch
@@ -35,7 +36,7 @@ class ImageApp:
         self.tk_image = None
 
         # Create button for picking image
-        self.pick_image_button = tk.Button(
+        self.pick_image_button = customtkinter.CTkButton(
             root, text="Pick Image", command=self.pick_image
         )
         self.pick_image_button.pack()
@@ -43,7 +44,7 @@ class ImageApp:
     def pick_image(self):
         # Open a file dialog to choose an image file
         file_path = filedialog.askopenfilename(
-            initialdir="/",
+            initialdir=".",
             title="Select Image",
             filetypes=[("Image Files", "*.png *.jpg *.jpeg")],
         )
@@ -155,6 +156,12 @@ class ImageApp:
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    customtkinter.set_appearance_mode("System")  # Modes: system (default), light, dark
+    customtkinter.set_default_color_theme(
+        "blue"
+    )  # Themes: blue (default), dark-blue, green
+
+    root = customtkinter.CTk()
+    # root = tk.Tk()
     app = ImageApp(root)
     root.mainloop()
