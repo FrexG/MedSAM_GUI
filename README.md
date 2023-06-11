@@ -18,8 +18,8 @@ pip install -r requirements.txt
 ```
 ## Usage
 - create a directory inside `MedSAM_GUI` and rename it to `finetune_weights`.
-- Download the SAM [checkpoint](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth)
 - Download the finetuned MedSAM [checkpoint](https://drive.google.com/file/d/1bxsrFWT5NXH-ZhWht-KU9vDk-nGSFNa5/view?usp=drive_link)
+- Optionally you can download the SAM [checkpoint](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth) which is not finetuned for medical images.
 - move the files to `finetune_weights` directory.
 
 ``` sh
