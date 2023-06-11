@@ -61,8 +61,8 @@ class ImageApp:
 
         self.image = image
         # Resize the image to fit the canvas
-        if image.width > self.canvas_width or image.height > self.canvas_height:
-            image.thumbnail((self.canvas_width, self.canvas_height), Image.ANTIALIAS)
+        # if image.width > self.canvas_width or image.height > self.canvas_height:
+        #    image.thumbnail((self.canvas_width, self.canvas_height), Image.ANTIALIAS)
 
         # Create Tkinter-compatible image object
         self.tk_image = ImageTk.PhotoImage(image)
@@ -121,7 +121,7 @@ class ImageApp:
         # Convert the tensor mask to a PIL image
         print(f"{pred_mask.shape}")
         color_mask = np.zeros((256, 256, 3), dtype=np.uint8)
-        color_mask[:, :] = (251, 10, 0)
+        color_mask[:, :] = (251, 250, 0)
 
         color_mask = cv2.bitwise_and(
             color_mask,
@@ -137,7 +137,7 @@ class ImageApp:
 
         print(f"{color_mask.shape=}")
 
-        image_cv = cv2.addWeighted(color_mask, 0.3, image_cv, 1, 0)
+        image_cv = cv2.addWeighted(color_mask, 0.8, image_cv, 1, 0)
 
         # Display the overlay image on the canvas
         image_pil = Image.fromarray(
