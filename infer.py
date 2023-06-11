@@ -19,14 +19,12 @@ class Config:
 @torch.inference_mode()
 def infer(image: torch.Tensor, bbox: tuple):
     config = Config()
-    # initialize sam model
-
+    # min max normalize image
     image = (image - image.min()) / (image.max() - image.min()) * 255.0
-
     H, W = image.shape[2], image.shape[3]
-
     image = image.to(config.device)
 
+    # initialize sam model
     sam_model = sam_model_registry[config.model_type](
         checkpoint=config.med_sam_checkpoint_dir
     ).to(config.device)
@@ -34,9 +32,7 @@ def infer(image: torch.Tensor, bbox: tuple):
     sam_trans = ResizeLongestSide(sam_model.image_encoder.img_size)
     # trans_image = image.unsqueeze(0).to(device)
     trans_image = TF.resize(image, (1024, 1024))
-
     box = sam_trans.apply_boxes(bbox, (H, W))
-
     box_tensor = torch.as_tensor(box, dtype=torch.float, device=config.device)
     # Get predictioin mask
 
