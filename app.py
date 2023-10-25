@@ -1,167 +1,244 @@
-import threading
 import cv2
+import threading
 import numpy as np
-import tkinter as tk
-import customtkinter
-from tkinter import filedialog
-from PIL import Image, ImageTk
+
+import matplotlib
+
+matplotlib.use("QtAgg")
+
+from matplotlib.patches import Rectangle
+from matplotlib.widgets import RectangleSelector
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QToolBar,
+    QWidget,
+    QFileDialog,
+    QVBoxLayout,
+    QPushButton,
+)
+
+
 import torch
-import torchvision.transforms as transforms
-from infer import infer
+import torchvision.transforms.functional as TF
+from elunet.elunet import ELUnet
+from infer import infer, infer_auto
+from usam import USAM
 
 
-class ImageApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("MedSAM App")
-        self.canvas_width = 720
-        self.canvas_height = 720
+class Toolbar(QToolBar):
+    def __init__(self, controller):
+        super(Toolbar, self).__init__()
 
-        # Create canvas
-        self.canvas = tk.Canvas(
-            root, width=self.canvas_width, height=self.canvas_height
-        )
-        self.canvas.pack()
+        self.controller = controller
 
-        # Bind mouse events
-        self.canvas.bind("<ButtonPress-1>", self.on_mouse_press)
-        self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
-        self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
+        self.open_file = QPushButton("Open")
+        self.open_file.setIcon(QIcon("./icons/folder.png"))
+        self.open_file.clicked.connect(self.on_open_clicked)
 
-        # Initialize variables
-        self.start_x = None
-        self.start_y = None
-        self.rect = None
-        self.image = None
-        self.tk_image = None
+        self.auto_segment_btn = QPushButton("Auto-Detect")
+        self.auto_segment_btn.setIcon(QIcon("./icons/robot.png"))
+        self.auto_segment_btn.clicked.connect(self.on_auto_btn_clicked)
 
-        # Create button for picking image
-        self.pick_image_button = customtkinter.CTkButton(
-            root, text="Pick Image", command=self.pick_image
-        )
-        self.pick_image_button.pack()
+        # draw box btn
+        self.draw_selection_btn = QPushButton("Select")
+        self.draw_selection_btn.setIcon(QIcon("./icons/add-selection.png"))
+        self.draw_selection_btn.setEnabled(False)
+        self.draw_selection_btn.clicked.connect(self.on_selection_box_clicked)
 
-    def pick_image(self):
-        # Open a file dialog to choose an image file
-        file_path = filedialog.askopenfilename(
-            initialdir=".",
-            title="Select Image",
-            filetypes=[("Image Files", "*.png *.jpg *.jpeg")],
-        )
+        self.addWidget(self.open_file)
+        self.show()
 
-        if file_path:
-            # Load the selected image
-            self.load_image(file_path)
+    def show_controls(self):
+        self.addWidget(self.auto_segment_btn)
+        self.addWidget(self.draw_selection_btn)
 
-    def load_image(self, image_path):
-        # Open the image file
-        image = Image.open(image_path)
+    def on_open_clicked(self):
+        self.controller.open_file()
 
-        image = image.resize((720, 720))
+    def on_auto_btn_clicked(self):
+        # start inference on a new thread
+        self.controller.image_widget.perform_auto_sam()
 
-        self.image = image
-        # Resize the image to fit the canvas
-        # if image.width > self.canvas_width or image.height > self.canvas_height:
-        #    image.thumbnail((self.canvas_width, self.canvas_height), Image.ANTIALIAS)
+    def on_selection_box_clicked(self):
+        self.controller.image_widget.perform_semiauto_sam()
 
-        # Create Tkinter-compatible image object
-        self.tk_image = ImageTk.PhotoImage(image)
 
-        # Clear canvas and display the image
-        self.canvas.delete("all")
-        self.canvas.create_image(0, 0, image=self.tk_image, anchor="nw")
+class ImageWidget(QWidget):
+    def __init__(self, controller):
+        super(ImageWidget, self).__init__()
+        self.controller = controller
+        self.load_unet()
+        layout = QVBoxLayout()
+        self.fig = Figure(figsize=(20, 20), dpi=100)
+        self.fig.tight_layout()
+        self.canvas = FigureCanvasQTAgg(self.fig)
+        self.mat_toolbar = NavigationToolbar2QT(self.canvas, self)
 
-    def on_mouse_press(self, event):
-        # Store the starting position of the bounding box
-        self.start_x = event.x
-        self.start_y = event.y
+        self.x1 = 0
+        self.x2 = 0
+        self.y1 = 0
+        self.y2 = 0
 
-    def on_mouse_drag(self, event):
-        # Update the bounding box as the mouse is dragged
-        if self.rect:
-            self.canvas.delete(self.rect)
-        self.rect = self.canvas.create_rectangle(
-            self.start_x, self.start_y, event.x, event.y, outline="red"
+        layout.addWidget(self.mat_toolbar)
+        layout.addWidget(self.canvas)
+
+        self.setLayout(layout)
+        self.show()
+
+    def load_unet(self):
+        self.elunet = ELUnet(1, 1, 16)
+        self.elunet.to("cpu")
+        self.elunet.load_state_dict(
+            torch.load("checkpoints/e_fold_1_eps_0.pth", map_location="cpu")
         )
 
-    def on_mouse_release(self, event):
-        # Print the coordinates of the bounding box
-        print("Bounding box coordinates:")
-        print(f"Top-left: ({self.start_x}, {self.start_y})")
-        print(f"Bottom-right: ({event.x}, {event.y})")
+    def show_image(self, image_path):
+        # create an axes
+        self.image_np = cv2.imread(image_path)
+        self.axes = self.fig.add_subplot(1, 1, 1)
+        self.axes.imshow(self.image_np)
+        self.canvas.draw()
 
-        # to tensor
-        transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                # transforms.Resize((1024, 1024)),
-            ]
-        )
-        tensor_img = transform(self.image)
+    def perform_auto_sam(self):
+        thread = threading.Thread(target=self.run_inference, args=("auto",))
+        thread.start()
 
-        bbox_tensor = torch.tensor([self.start_x, self.start_y, event.x, event.y])
+    def perform_semiauto_sam(self):
+        """Attach a rectangle selector to an axes"""
 
-        # Start a new thread for inference
-        threading.Thread(
-            target=self.run_inference, args=(tensor_img, bbox_tensor)
-        ).start()
-
-    def run_inference(self, tensor_img, bounding_box):
-        pred_mask = infer(tensor_img.unsqueeze(0), bounding_box)
-
-        print(f"white pix count = {(pred_mask == 255).sum()}")
-
-        pred_mask = pred_mask.squeeze(0).cpu()
-
-        print(f"pred shape = {pred_mask.shape}")
-
-        self.update_gui(pred_mask, tensor_img)
-
-    def update_gui(self, pred_mask, tensor_img):
-        # Convert the tensor mask to a PIL image
-        print(f"{pred_mask.shape}")
-        color_mask = np.zeros((256, 256, 3), dtype=np.uint8)
-        color_mask[:, :] = (251, 250, 0)
-
-        color_mask = cv2.bitwise_and(
-            color_mask,
-            color_mask,
-            mask=np.uint8(pred_mask.squeeze(0).numpy()),
+        self.rect_selector = RectangleSelector(
+            self.axes,
+            self.select_callback,
+            drawtype="box",
+            useblit=True,
+            button=[1],
+            minspanx=5,
+            minspany=5,
+            spancoords="pixels",
+            interactive=True,
         )
 
-        image_cv = np.uint8(
-            tensor_img.permute(1, 2, 0).cpu().numpy() * 255
-        )  # np.array(self.image)
+    def select_callback(self, eclick, erelease):
+        """Callback for line selection.
+        *eclick* and *erelease* are the press and release events.
+        https://matplotlib.org/stable/gallery/widgets/rectangle_selector.html
+        """
+        x1, y1 = eclick.xdata, eclick.ydata
+        x2, y2 = erelease.xdata, erelease.ydata
 
-        color_mask = cv2.resize(color_mask, (self.image.width, self.image.height))
+        self.x1 = x1
+        self.x2 = x2
+        self.y1 = y1
+        self.y2 = y2
 
+        thread = threading.Thread(target=self.run_inference, args=("semi",))
+        thread.start()
+
+        del self.rect_selector
+
+        print(f"({x1:3.2f}, {y1:3.10f}) --> ({x2:3.2f}, {y2:3.10f})")
+
+    def run_inference(self, infer_type="auto"):
+        cv2_image = self.image_np.copy()
+
+        if infer_type == "auto":
+            tensor_img = TF.to_tensor(
+                cv2.cvtColor(cv2_image, cv2.COLOR_BGR2GRAY)
+            )  # min-max normalize and scale
+
+            tensor_img = (tensor_img - tensor_img.min()) / (
+                tensor_img.max() - tensor_img.min()
+            )
+
+            mask_pred = infer_auto(tensor_img, self.elunet)
+            mask_pred = (mask_pred > 0.7).float() * 255.0
+
+            self.display_result(
+                mask_pred, cv2_image, (cv2_image.shape[1], cv2_image.shape[0])
+            )
+
+        else:
+            tensor_img = TF.to_tensor(self.image_np)
+
+            tensor_img = (tensor_img - tensor_img.min()) / (
+                tensor_img.max() - tensor_img.min()
+            )
+
+            mask_pred = infer(
+                tensor_img, torch.tensor([self.x1, self.y1, self.x2, self.y2])
+            )
+            self.display_result(
+                mask_pred, cv2_image, (cv2_image.shape[1], cv2_image.shape[0])
+            )
+
+    def display_result(self, mask_pred, cv2_image, display_shape):
+        # reshape to channels last
+        mask_pred = mask_pred[0].permute(1, 2, 0)
+        # threshold mask
+        mask_pred = np.uint8(mask_pred.numpy())
+        # resize to original
+        mask_pred = cv2.resize(mask_pred, display_shape)
+
+        mask_pred = np.expand_dims(mask_pred, axis=-1)
+
+        # color the mask
+        color_mask = np.zeros(
+            (mask_pred.shape[0], mask_pred.shape[1], 3), dtype=np.uint8
+        )
         print(f"{color_mask.shape=}")
+        print(f"{cv2_image.shape=}")
 
-        image_cv = cv2.addWeighted(color_mask, 0.8, image_cv, 1, 0)
+        color_mask[:, :] = (255, 0, 0)
+        # bit wise and
+        color_mask = cv2.bitwise_and(color_mask, color_mask, mask=mask_pred)
 
-        # Display the overlay image on the canvas
-        image_pil = Image.fromarray(
-            image_cv
-        )  # cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB))
+        output_image = cv2.addWeighted(cv2_image, 0.8, color_mask, 0.2, 0.0)
 
-        image_tk = ImageTk.PhotoImage(image_pil)
-
-        self.canvas.delete("all")
-        self.canvas.create_image(
-            0, 0, image=image_tk, anchor="nw"
-        )  # tk_overlay, anchor="nw")
-
-        # Store a reference to the PhotoImage object to prevent it from being garbage collected
-        self.canvas.image = image_tk
+        self.axes.imshow(output_image)
+        self.canvas.draw()
 
 
-if __name__ == "__main__":
-    customtkinter.set_appearance_mode("System")  # Modes: system (default), light, dark
-    customtkinter.set_default_color_theme(
-        "blue"
-    )  # Themes: blue (default), dark-blue, green
+class MedsamApp(QMainWindow):
+    def __init__(self):
+        super(MedsamApp, self).__init__()
+        self.setWindowTitle("PIERWSI MedSAM")
+        self.resize(1024, 720)
+        # define a layout
+        layout = QVBoxLayout()
+        self.toolbar = Toolbar(self)
+        self.image_widget = ImageWidget(self)
 
-    root = customtkinter.CTk()
-    # root = tk.Tk()
-    app = ImageApp(root)
-    root.mainloop()
+        self.addToolBar(self.toolbar)
+        layout.addWidget(self.image_widget)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
+
+    def open_file(self):
+        self.image_widget.fig.clear()
+        # Open a file dialog
+        file_filters = ".png files (*.png);;.jpg files (*.jpg);;.jpeg files (*.jpeg)"
+
+        self.filename = QFileDialog.getOpenFileName(self)[0]
+
+        if not self.filename:
+            return
+
+        if self.filename:
+            self.toolbar.show_controls()
+            self.toolbar.draw_selection_btn.setEnabled(True)
+            self.image_widget.show_image(self.filename)
+
+
+app = QApplication([])
+window = MedsamApp()
+window.show()
+
+app.exec()

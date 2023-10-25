@@ -3,4 +3,4 @@ torch
 torchvision
 opencv-python>4.7.*
 pillow
-customtkinter
+PyQt6

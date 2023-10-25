@@ -1,7 +1,9 @@
-import cv2
 import torch
-import numpy as np
+from torch._C import device
+from elunet.elunet import ELUnet
+from usam import USAM
 from segment_anything import sam_model_registry, SamPredictor
+
 import torchvision.transforms.functional as TF
 from segment_anything.utils.transforms import ResizeLongestSide
 from dataclasses import dataclass
@@ -9,24 +11,24 @@ from dataclasses import dataclass
 
 @dataclass()
 class Config:
-    sam_checkpoint_dir: str = "finetune_weights/sam_vit_b_01ec64.pth"
-    med_sam_checkpoint_dir: str = "finetune_weights/medsam_20230423_vit_b_0.0.1.pth"
-
+    sam_checkpoint_dir: str = "checkpoints/medsam_finetune_2023-05-16-09-55.pth"
     model_type: str = "vit_b"
-    device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    device: str = "cpu"
+    unet_size = (256, 256)
 
 
 @torch.inference_mode()
-def infer(image: torch.Tensor, bbox: tuple):
+def infer(image: torch.Tensor, bbox):
     config = Config()
-    # min max normalize image
-    image = (image - image.min()) / (image.max() - image.min()) * 255.0
-    H, W = image.shape[2], image.shape[3]
+    print(f"{bbox=}")
+    H, W = image.shape[1], image.shape[2]
     image = image.to(config.device)
+
+    image = image.unsqueeze(0)
 
     # initialize sam model
     sam_model = sam_model_registry[config.model_type](
-        checkpoint=config.med_sam_checkpoint_dir
+        checkpoint=config.sam_checkpoint_dir
     ).to(config.device)
 
     sam_trans = ResizeLongestSide(sam_model.image_encoder.img_size)
@@ -53,8 +55,20 @@ def infer(image: torch.Tensor, bbox: tuple):
     mask_predictions = torch.sigmoid(mask_predictions)
 
     mask_predictions = (mask_predictions > 0.5).int() * 255
-    torch.cuda.empty_cache()
 
     del sam_model
+
+    return mask_predictions
+
+
+@torch.inference_mode()
+def infer_auto(image: torch.Tensor, elunet):
+    config = Config()
+    # resize to (256,256)
+    input_image = TF.resize(image, config.unet_size).unsqueeze(0)
+
+    print(f"{input_image.shape=}")
+
+    mask_predictions = elunet(input_image)
 
     return mask_predictions
