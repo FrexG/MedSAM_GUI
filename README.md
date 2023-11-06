@@ -13,7 +13,7 @@ An easy to use GUI for bounding box prompted and automatic segmentation of medic
 - create a directory inside `MedSAM_GUI` and rename it to `checkpoints`.
 - Download the finetuned MedSAM [checkpoint](https://drive.google.com/file/d/1bxsrFWT5NXH-ZhWht-KU9vDk-nGSFNa5/view?usp=drive_link)
 - Optionally you can download the SAM [checkpoint](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth) which is not finetuned for medical images.
-- move the files to `finetune_weights` directory.
+- move the files to `checkpoints` directory.
 
 ``` sh
 # On linux or mac
