@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
-
-from segment_anything import sam_model_registry
-from elunet.elunet import ELUnet
-
 import torchvision.transforms.functional as TF
-from torchvision.models.resnet import resnet18, ResNet18_Weights
+from torchvision.models.resnet import resnet18
+
+from elunet.elunet import ELUnet
 from segment_anything.utils.transforms import ResizeLongestSide
+from segment_anything import sam_model_registry
+
 from dataclasses import dataclass
 
 
