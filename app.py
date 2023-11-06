@@ -12,12 +12,13 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QFont
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
     QToolBar,
     QWidget,
+    QLabel,
     QFileDialog,
     QVBoxLayout,
     QPushButton,
@@ -26,9 +27,7 @@ from PyQt6.QtWidgets import (
 
 import torch
 import torchvision.transforms.functional as TF
-from elunet.elunet import ELUnet
-from infer import infer, infer_auto
-from usam import USAM
+from infer import infer, infer_auto, birads_infer, load_sam, load_unet, load_resnet
 
 
 class Toolbar(QToolBar):
@@ -51,12 +50,20 @@ class Toolbar(QToolBar):
         self.draw_selection_btn.setEnabled(False)
         self.draw_selection_btn.clicked.connect(self.on_selection_box_clicked)
 
+        self.cancer_probality = QLabel("Risk of Malignancy:")
+        self.prob_lbl = QLabel("None")
+        font = QFont()
+        font.setPointSize(16)
+        self.prob_lbl.setFont(font)
+
         self.addWidget(self.open_file)
         self.show()
 
     def show_controls(self):
         self.addWidget(self.auto_segment_btn)
         self.addWidget(self.draw_selection_btn)
+        self.addWidget(self.cancer_probality)
+        self.addWidget(self.prob_lbl)
 
     def on_open_clicked(self):
         self.controller.open_file()
@@ -73,7 +80,7 @@ class ImageWidget(QWidget):
     def __init__(self, controller):
         super(ImageWidget, self).__init__()
         self.controller = controller
-        self.load_unet()
+
         layout = QVBoxLayout()
         self.fig = Figure(figsize=(20, 20), dpi=100)
         self.fig.tight_layout()
@@ -91,19 +98,18 @@ class ImageWidget(QWidget):
         self.setLayout(layout)
         self.show()
 
-    def load_unet(self):
-        self.elunet = ELUnet(1, 1, 16)
-        self.elunet.to("cpu")
-        self.elunet.load_state_dict(
-            torch.load("checkpoints/e_fold_1_eps_0.pth", map_location="cpu")
-        )
-
     def show_image(self, image_path):
         # create an axes
         self.image_np = cv2.imread(image_path)
+        img_gray_scale = cv2.imread(image_path, 0)
+
         self.axes = self.fig.add_subplot(1, 1, 1)
         self.axes.imshow(self.image_np)
         self.canvas.draw()
+        # get birads predictioin
+
+        pred_class = birads_infer(TF.to_tensor(img_gray_scale), self.controller.resnet)
+        self.controller.toolbar.prob_lbl.setText(pred_class)
 
     def perform_auto_sam(self):
         thread = threading.Thread(target=self.run_inference, args=("auto",))
@@ -115,7 +121,7 @@ class ImageWidget(QWidget):
         self.rect_selector = RectangleSelector(
             self.axes,
             self.select_callback,
-            drawtype="box",
+            drawtype="line",
             useblit=True,
             button=[1],
             minspanx=5,
@@ -156,7 +162,7 @@ class ImageWidget(QWidget):
                 tensor_img.max() - tensor_img.min()
             )
 
-            mask_pred = infer_auto(tensor_img, self.elunet)
+            mask_pred = infer_auto(tensor_img, self.controller.elunet)
             mask_pred = (mask_pred > 0.7).float() * 255.0
 
             self.display_result(
@@ -171,11 +177,14 @@ class ImageWidget(QWidget):
             )
 
             mask_pred = infer(
-                tensor_img, torch.tensor([self.x1, self.y1, self.x2, self.y2])
+                tensor_img,
+                torch.tensor([self.x1, self.y1, self.x2, self.y2]),
+                self.controller.sam,
             )
             self.display_result(
                 mask_pred, cv2_image, (cv2_image.shape[1], cv2_image.shape[0])
             )
+        # get class
 
     def display_result(self, mask_pred, cv2_image, display_shape):
         # reshape to channels last
@@ -194,7 +203,7 @@ class ImageWidget(QWidget):
         print(f"{color_mask.shape=}")
         print(f"{cv2_image.shape=}")
 
-        color_mask[:, :] = (255, 0, 0)
+        color_mask[:, :] = (255, 55, 5)
         # bit wise and
         color_mask = cv2.bitwise_and(color_mask, color_mask, mask=mask_pred)
 
@@ -209,6 +218,10 @@ class MedsamApp(QMainWindow):
         super(MedsamApp, self).__init__()
         self.setWindowTitle("PIERWSI MedSAM")
         self.resize(1024, 720)
+
+        self.elunet = load_unet()
+        self.sam = load_sam()
+        self.resnet = load_resnet()
         # define a layout
         layout = QVBoxLayout()
         self.toolbar = Toolbar(self)
