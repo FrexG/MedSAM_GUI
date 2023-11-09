@@ -196,18 +196,22 @@ class ImageWidget(QWidget):
 
         mask_pred = np.expand_dims(mask_pred, axis=-1)
 
-        # color the mask
-        color_mask = np.zeros(
-            (mask_pred.shape[0], mask_pred.shape[1], 3), dtype=np.uint8
+        # find the contours of the mask
+        contours, _ = cv2.findContours(
+            mask_pred, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
         )
-        print(f"{color_mask.shape=}")
-        print(f"{cv2_image.shape=}")
 
-        color_mask[:, :] = (255, 55, 5)
-        # bit wise and
-        color_mask = cv2.bitwise_and(color_mask, color_mask, mask=mask_pred)
+        ## color the mask
+        # color_mask = np.zeros(
+        #    (mask_pred.shape[0], mask_pred.shape[1], 3), dtype=np.uint8
+        # )
+        # color_mask[:, :] = (255, 55, 5)
+        ## bit wise and
+        # color_mask = cv2.bitwise_and(color_mask, color_mask, mask=mask_pred)
 
-        output_image = cv2.addWeighted(cv2_image, 0.8, color_mask, 0.2, 0.0)
+        # output_image = cv2.addWeighted(cv2_image, 0.8, color_mask, 0.2, 0.0)
+
+        output_image = cv2.drawContours(cv2_image, contours, -1, (255, 5, 0), 2)
 
         self.axes.imshow(output_image)
         self.canvas.draw()
