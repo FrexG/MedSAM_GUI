@@ -45,15 +45,15 @@ def load_unet():
 def load_resnet():
     resnet_model = resnet18(weights=None)
     # change the last fc layer
-    resnet_model.conv1 = nn.Conv2d(
-        1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False
-    )
+    # resnet_model.conv1 = nn.Conv2d(
+    #    1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False
+    # )
 
     resnet_model.fc = nn.Linear(
         resnet_model.fc.in_features, config.num_classes, bias=True
     )
     resnet_model.load_state_dict(
-        torch.load("checkpoints/resnet18_birads_2023-11-02.pth", map_location="cpu")
+        torch.load("checkpoints/resnet18_birads_2023-11-22.pth", map_location="cpu")
     )
 
     return resnet_model

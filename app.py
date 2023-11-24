@@ -108,7 +108,7 @@ class ImageWidget(QWidget):
         self.canvas.draw()
         # get birads predictioin
 
-        pred_class = birads_infer(TF.to_tensor(img_gray_scale), self.controller.resnet)
+        pred_class = birads_infer(TF.to_tensor(self.image_np), self.controller.resnet)
         self.controller.toolbar.prob_lbl.setText(pred_class)
 
     def perform_auto_sam(self):
